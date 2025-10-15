@@ -1,0 +1,221 @@
+"""
+Symbolic Distance Analysis and Plotting Code
+Add this as a new cell in your notebook after training completes
+
+This code matches the plotting from critical_pairs_5_3_depth_3_lr=1e_1.ipynb
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+def analyze_margins_by_distance(csv_path_symbolic, pairs_by_distance, valid_distances, items_n=7):
+    """Analyze and plot margin data by symbolic distance"""
+    
+    # Load the enhanced CSV data
+    df_symbolic = pd.read_csv(csv_path_symbolic)
+    
+    # Get unique runs
+    unique_runs = df_symbolic['run'].unique()
+    num_runs = len(unique_runs)
+    
+    print(f"Analyzing margin data from {csv_path_symbolic}")
+    print(f"Runs: {num_runs}, Total rows: {len(df_symbolic)}")
+    print("="*60)
+    
+    # 1. Plot separate learning curves for each distance (grouped by distance)
+    n_distances = len(valid_distances)
+    n_cols = 3
+    n_rows = (n_distances + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 5*n_rows))
+    axes = axes.flatten() if n_distances > 1 else [axes]
+    
+    for idx, distance in enumerate(valid_distances):
+        ax = axes[idx]
+        pairs = pairs_by_distance[distance]
+        
+        # Get column names for this distance
+        pair_columns = [f"pair_{pair[0]}_{pair[1]}_dist_{distance}" for pair in pairs]
+        
+        # Plot each run separately for this distance
+        for run in unique_runs:
+            run_data = df_symbolic[df_symbolic['run'] == run]
+            steps = run_data['step'].values
+            
+            # Average across all pairs of this distance for this run
+            avg_margins = run_data[pair_columns].mean(axis=1).values
+            
+            ax.plot(steps, avg_margins, alpha=0.3, linewidth=1)
+        
+        # Calculate and plot mean across runs
+        all_steps = []
+        all_avg_margins = []
+        
+        for run in unique_runs:
+            run_data = df_symbolic[df_symbolic['run'] == run]
+            steps = run_data['step'].values
+            avg_margins = run_data[pair_columns].mean(axis=1).values
+            all_steps.extend(steps)
+            all_avg_margins.extend(avg_margins)
+        
+        step_margins = defaultdict(list)
+        for step, margin in zip(all_steps, all_avg_margins):
+            step_margins[step].append(margin)
+        
+        steps_sorted = sorted(step_margins.keys())
+        mean_margins = [np.mean(step_margins[step]) for step in steps_sorted]
+        std_margins = [np.std(step_margins[step]) for step in steps_sorted]
+        
+        # Plot mean with error band
+        ax.plot(steps_sorted, mean_margins, color='darkblue', linewidth=2.5, label='Mean')
+        ax.fill_between(steps_sorted,
+                        np.array(mean_margins) - np.array(std_margins),
+                        np.array(mean_margins) + np.array(std_margins),
+                        color='lightblue', alpha=0.4, label='±1 SD')
+        
+        ax.set_xlabel('Training Step', fontsize=10)
+        ax.set_ylabel('Average Margin', fontsize=10)
+        ax.set_title(f'Distance {distance} ({len(pairs)} pairs)', fontsize=12, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(0, color='black', linestyle='--', alpha=0.5)
+        ax.legend(fontsize=8)
+    
+    # Hide empty subplots
+    for idx in range(n_distances, len(axes)):
+        axes[idx].set_visible(False)
+    
+    plt.suptitle('Learning Curves by Symbolic Distance', fontsize=16, fontweight='bold', y=1.00)
+    plt.tight_layout()
+    plt.show()
+    
+    # 2. Final margins distribution by distance
+    plt.figure(figsize=(12, 8))
+    
+    final_margins_by_distance = {}
+    
+    for distance in valid_distances:
+        pairs = pairs_by_distance[distance]
+        pair_columns = [f"pair_{pair[0]}_{pair[1]}_dist_{distance}" for pair in pairs]
+        
+        final_margins = []
+        for run in unique_runs:
+            run_data = df_symbolic[df_symbolic['run'] == run]
+            final_step_data = run_data.iloc[-1]  # Last step
+            final_margins.extend(final_step_data[pair_columns].values)
+        
+        final_margins_by_distance[distance] = final_margins
+    
+    # Box plot
+    plt.subplot(2, 2, 1)
+    box_data = [final_margins_by_distance[d] for d in valid_distances]
+    plt.boxplot(box_data, labels=[f'Dist {d}' for d in valid_distances])
+    plt.ylabel('Final Margin')
+    plt.title('Final Margins Distribution by Distance')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(rotation=45)
+    
+    # Violin plot
+    plt.subplot(2, 2, 2)
+    positions = range(1, len(valid_distances) + 1)
+    parts = plt.violinplot(box_data, positions=positions)
+    plt.xticks(positions, [f'Dist {d}' for d in valid_distances])
+    plt.ylabel('Final Margin')
+    plt.title('Final Margins Density by Distance')
+    plt.grid(True, alpha=0.3)
+    
+    # Mean and std by distance
+    plt.subplot(2, 2, 3)
+    means = [np.mean(final_margins_by_distance[d]) for d in valid_distances]
+    stds = [np.std(final_margins_by_distance[d]) for d in valid_distances]
+    
+    plt.bar(valid_distances, means, yerr=stds, capsize=5, alpha=0.7, color='steelblue')
+    plt.xlabel('Symbolic Distance')
+    plt.ylabel('Mean Final Margin')
+    plt.title('Mean Final Margins with Error Bars')
+    plt.grid(True, alpha=0.3, axis='y')
+    plt.xticks(valid_distances)
+    
+    # Heatmap showing all pairs
+    plt.subplot(2, 2, 4)
+    
+    # Create a matrix for visualization
+    all_final_means = []
+    labels = []
+    for distance in valid_distances:
+        pairs = pairs_by_distance[distance]
+        for pair in pairs:
+            pair_col = f"pair_{pair[0]}_{pair[1]}_dist_{distance}"
+            final_values = []
+            for run in unique_runs:
+                run_data = df_symbolic[df_symbolic['run'] == run]
+                final_values.append(run_data[pair_col].iloc[-1])
+            all_final_means.append(np.mean(final_values))
+            labels.append(f"{pair[0]}→{pair[1]}")
+    
+    # Plot top pairs by absolute margin
+    sorted_indices = np.argsort(np.abs(all_final_means))[::-1][:20]  # Top 20
+    top_means = [all_final_means[i] for i in sorted_indices]
+    top_labels = [labels[i] for i in sorted_indices]
+    
+    colors_bar = ['green' if m > 0 else 'red' for m in top_means]
+    plt.barh(range(len(top_means)), top_means, color=colors_bar, alpha=0.7)
+    plt.yticks(range(len(top_labels)), top_labels, fontsize=8)
+    plt.xlabel('Mean Final Margin')
+    plt.title('Top 20 Pairs by Absolute Final Margin')
+    plt.grid(True, alpha=0.3, axis='x')
+    plt.axvline(0, color='black', linestyle='--', alpha=0.5)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # 3. Print summary statistics
+    print("\n" + "="*80)
+    print("SYMBOLIC DISTANCE ANALYSIS SUMMARY")
+    print("="*80)
+    
+    for distance in valid_distances:
+        pairs = pairs_by_distance[distance]
+        pair_columns = [f"pair_{pair[0]}_{pair[1]}_dist_{distance}" for pair in pairs]
+        
+        final_margins = []
+        for run in unique_runs:
+            run_data = df_symbolic[df_symbolic['run'] == run]
+            final_step_data = run_data.iloc[-1]
+            final_margins.extend(final_step_data[pair_columns].values)
+        
+        print(f"\nDistance {distance} ({len(pairs)} pairs): {pairs}")
+        print(f"  Final margins - Mean: {np.mean(final_margins):.4f}, Std: {np.std(final_margins):.4f}")
+        print(f"  Final margins - Min: {np.min(final_margins):.4f}, Max: {np.max(final_margins):.4f}")
+        print(f"  Condition n - sd = {items_n} - {distance} = {items_n - distance}")
+    
+    return final_margins_by_distance
+
+# =============================================================================
+# USAGE: Add this cell to your notebook after training
+# =============================================================================
+
+# After running train_networks and saving the CSV, run this:
+"""
+# 1. Load or define pairs_by_distance
+from modified_train_networks_with_symbolic_distance import get_all_pairs_by_distance
+
+pairs_by_distance = get_all_pairs_by_distance(items_n)
+valid_distances = sorted(pairs_by_distance.keys())
+
+# 2. Specify the CSV path
+csv_path_symbolic = "run_csvs/knowledge_assembly_gamma_0.0_symbolic_distances.csv"
+
+# 3. Run the analysis
+final_margins_by_distance = analyze_margins_by_distance(
+    csv_path_symbolic, 
+    pairs_by_distance, 
+    valid_distances,
+    items_n=7
+)
+"""
+
+print("Symbolic distance plotting functions loaded!")
+print("Use analyze_margins_by_distance() to create plots")
+
