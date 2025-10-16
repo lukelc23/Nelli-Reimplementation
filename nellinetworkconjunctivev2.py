@@ -126,6 +126,19 @@ class Network(torch.nn.Module):
                     h1s[i, :] = self.layer_1.weight[:, i].detach().numpy().copy()
             return h1s
 
+    def extract_h2s(self):
+        """Calculate network hidden state representations for all input items
+
+        :return: Numpy array of size (items_n, h1_size) containing all hidden states
+        """
+        with torch.no_grad():
+            n = self.items_n
+            h2s = np.zeros((n, self.h1_size))
+            for i in range(n):
+                with torch.no_grad():
+                    h2s[i, :] = self.layer_3.weight[:, i].detach().numpy().copy()
+            return h2s
+
     def _one_hot(self, item):
         """ Create one-hot vector from index
 
