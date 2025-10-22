@@ -150,6 +150,32 @@ class Network(torch.nn.Module):
                 with torch.no_grad():
                     a1s[i,:] = np.maximum(0, self.layer_1(self._one_hot(i)).detach().numpy().copy())
             return a1s
+    
+    def extract_pair_b1s(self):
+        """Calculate network hidden state representations for the pairing of all input items after relu in layer1"""
+        with torch.no_grad():
+            n = self.items_n
+            pair_b1s = np.zeros((n, self.h1_size))
+            for i in range(n):
+                for j in range(n):
+                    with torch.no_grad():
+                        pair_b1s[i,j] = np.maximum(0, self.layer_1(self._one_hot(i)) - self.layer_1(self._one_hot(j))).detach().numpy().copy()
+            return pair_b1s
+    
+    def extract_pair_b3s(self):
+        """
+        Calculate network hidden state representations for the pairing of all input items after relu in layer3
+        
+        :return: Numpy array of size (items_n, items_n) containing a vectors of (h1s, 1)
+        """
+        with torch.no_grad():
+            n = self.items_n
+            pair_b3s = np.zeros((n, n))
+            for i in range(n):
+                for j in range(n):
+                    with torch.no_grad():
+                        pair_b3s[i,j] = np.maximum(0, self.layer_3(torch.cat([self._one_hot(i), self._one_hot(j)])).detach().numpy().copy())
+            return pair_b3s
 
     def extract_r1s(self):
         """Calculate network readout state representations for all input items
