@@ -60,6 +60,8 @@ class Network(torch.nn.Module):
         x2 = self._one_hot(item_2)
         h1 = self.non_linearity(self.layer_1(x1) - self.layer_1(x2))
         h2 = self.non_linearity(self.layer_3(torch.cat([x1, x2])))
+        readout1 = self.layer_2(h1)
+        readout2 = self.layer_4(h2)
 
         out = self.layer_2(h1) + proportionv1 * self.layer_4(h2)
         return h1, out
@@ -136,6 +138,42 @@ class Network(torch.nn.Module):
                 with torch.no_grad():
                     h2s[i, :] = self.layer_3.weight[:, i].detach().numpy().copy()
             return h2s
+
+    def extract_a1s(self):
+
+        """Calculate network hidden activations for all input items"""
+        """TOMORROW: write down the mds for a1s"""
+
+        with torch.no_grad():
+            n = self.items_n
+            a1s = np.zeros((n, self.h1_size))
+            for i in range(n):
+                with torch.no_grad():
+                    x1 = self._one_hot(i)
+                    a1s[i,:] = self.layer_1(x1).detach().numpy().copy()
+            return a1s
+
+    def extract_readouts1(self):
+        """Calculate network readout representations for all input items
+        """
+        with torch.no_grad():
+            n = self.items_n
+            readouts = np.zeros((n, self.readouts))
+            for i in range(n):
+                with torch.no_grad():
+                    readouts[i, :] = self.layer_2.weight[0, i].detach().numpy().copy()
+            return readouts
+    
+    def extract_readouts2(self):
+        """Calculate network readout representations for all input items
+        """
+        with torch.no_grad():
+            n = self.items_n
+            readouts = np.zeros((n, self.readouts))
+            for i in range(n):
+                with torch.no_grad():
+                    readouts[i, :] = self.layer_4.weight[0, i].detach().numpy().copy()
+            return readouts
 
     def _one_hot(self, item):
         """ Create one-hot vector from index

@@ -141,6 +141,16 @@ class Network(torch.nn.Module):
                     h2s[i, :] = self.layer_3.weight[:, i].detach().numpy().copy()
             return h2s
 
+    def extract_a1s(self):
+        """Calculate network hidden activations for all input items"""
+        with torch.no_grad():
+            n = self.items_n
+            a1s = np.zeros((n, self.h1_size))
+            for i in range(n):
+                with torch.no_grad():
+                    a1s[i,:] = self.layer_1(self._one_hot(i)).detach().numpy().copy()
+            return a1s
+
     def extract_r1s(self):
         """Calculate network readout state representations for all input items
 
