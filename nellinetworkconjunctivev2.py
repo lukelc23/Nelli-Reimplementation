@@ -148,7 +148,7 @@ class Network(torch.nn.Module):
             a1s = np.zeros((n, self.h1_size))
             for i in range(n):
                 with torch.no_grad():
-                    a1s[i,:] = self.layer_1(self._one_hot(i)).detach().numpy().copy()
+                    a1s[i,:] = np.maximum(0, self.layer_1(self._one_hot(i)).detach().numpy().copy())
             return a1s
 
     def extract_r1s(self):
